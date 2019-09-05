@@ -1,0 +1,11 @@
+= Learning Go language by coding/playing toys
+:toc:
+:toclevels: 5
+
+== Abstract
+
+This repo is a recopilation of hacking toys as an excuse to learn Go language features by playing them, as well as, some libraries from Go's universe.
+
+== Toys
+
+. link:./code/src/toys/KafkaToy.go[KafkaToy.go]: begining from an offical link:https://github.com/confluentinc/confluent-kafka-go/blob/master/examples/consumer_channel_example/consumer_channel_example.go[Kafka Go Example] this toys claims to put in practice topic consumtion.
