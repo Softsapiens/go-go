@@ -46,9 +46,10 @@ func main() {
 	err = c.SubscribeTopics(topics, nil)
 
 	run := true
+	worker := 0
 
 	for run == true {
-		select {
+	select {
 		case sig := <-sigchan:
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
@@ -62,9 +63,20 @@ func main() {
 				fmt.Fprintf(os.Stderr, "%% %v\n", e)
 				c.Unassign()
 			case *kafka.Message:
-				fmt.Printf("%% Message on %s:\n%s\n",
-					e.TopicPartition, string(e.Value))
-				c.CommitMessage(e)
+				go func(worker int, m *kafka.Message) {
+					fmt.Printf("%% [worker-%d] Message on %s:\n%s\n", worker, m.TopicPartition, string(m.Value))
+					
+					// Empirical Observation: CommitMessage only commit offset if offset-1 has been committed previously.
+					_, err := c.CommitMessage(m)
+
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "%% Error %s commiting %v\n", err, e)
+					} else {
+						fmt.Printf("%% [worker-%d] Commiting on %s\n", worker, m.TopicPartition)
+					}
+				}(worker, e)
+				
+				worker++
 			case kafka.PartitionEOF:
 				fmt.Printf("%% Reached %v\n", e)
 			case kafka.Error:
@@ -75,5 +87,6 @@ func main() {
 	}
 
 	fmt.Printf("Closing consumer\n")
+
 	c.Close()
 }
