@@ -8,4 +8,4 @@ This repo is a recopilation of hacking toys as an excuse to learn Go language fe
 
 == Toys
 
-. link:./code/src/toys/KafkaToy.go[KafkaToy.go]: begining from an offical link:https://github.com/confluentinc/confluent-kafka-go/blob/master/examples/consumer_channel_example/consumer_channel_example.go[Kafka Go Example] this toys claims to put in practice topic consumtion.
+. link:./code/src/toys/KafkaToy.go[KafkaToy.go]: begining from an offical link:https://github.com/confluentinc/confluent-kafka-go/blob/master/examples/consumer_channel_example/consumer_channel_example.go[Kafka Go Example] this toys claims to put in practice topic consumption. A further info will be provided, but this toy requires link:https://github.com/edenhill/librdkafka[librdkafka] above 1.1.0
