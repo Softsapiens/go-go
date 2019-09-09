@@ -1,12 +1,13 @@
 package main
 
-import "gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
-
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"gopkg.in/confluentinc/confluent-kafka-go.v1/kafka"
 )
 
 func main() {
@@ -25,12 +26,12 @@ func main() {
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":               	broker,
-		"group.id":                        	group,
-		"session.timeout.ms":              	6000,
-		"go.events.channel.enable":        	true,
-		"go.application.rebalance.enable": 	true,
-		"enable.auto.commit": 				false,
+		"bootstrap.servers":               broker,
+		"group.id":                        group,
+		"session.timeout.ms":              6000,
+		"go.events.channel.enable":        true,
+		"go.application.rebalance.enable": true,
+		"enable.auto.commit":              false,
 		// Enable generation of PartitionEOF when the
 		// end of a partition is reached.
 		"enable.partition.eof": 			true,
@@ -47,9 +48,10 @@ func main() {
 
 	run := true
 	worker := 0
+	chs := map[int32]chan *kafka.Message{}
 
 	for run == true {
-	select {
+		select {
 		case sig := <-sigchan:
 			fmt.Printf("Caught signal %v: terminating\n", sig)
 			run = false
@@ -57,28 +59,62 @@ func main() {
 		case ev := <-c.Events():
 			switch e := ev.(type) {
 			case kafka.AssignedPartitions:
-				fmt.Fprintf(os.Stderr, "%% %v\n", e)
+				log.Printf("%% %v\n", e)
 				c.Assign(e.Partitions)
-			case kafka.RevokedPartitions:
-				fmt.Fprintf(os.Stderr, "%% %v\n", e)
-				c.Unassign()
-			case *kafka.Message:
-				go func(worker int, m *kafka.Message) {
-					fmt.Printf("%% [worker-%d] Message on %s:\n%s\n", worker, m.TopicPartition, string(m.Value))
-					
-					// Empirical Observation: CommitMessage only commit offset if offset-1 has been committed previously.
-					_, err := c.CommitMessage(m)
+				// Create a channel for each partition
+				// Start worker for each partition
+				for _, p := range e.Partitions {
+					if chs[p.Partition] == nil {
+						log.Printf("Creating channel for partition %d", p.Partition)
+						chs[p.Partition] = make(chan *kafka.Message, 2)
 
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%% Error %s commiting %v\n", err, e)
-					} else {
-						fmt.Printf("%% [worker-%d] Commiting on %s\n", worker, m.TopicPartition)
+						log.Printf("Launching worker [%d]", worker)
+
+						go func(worker int, ch chan *kafka.Message) {
+							runWrk := true
+
+							for runWrk == true {
+								select {
+								/*case sig := <-sigchan:
+								log.Printf("Caught signal in worker %v: terminating\n", sig)
+								run = false*/
+								case m := <-ch:
+
+									log.Printf("%% [worker-%d] Message on %s:\n%s\n", worker, m.TopicPartition, string(m.Value))
+
+									// Empirical Observation: CommitMessage only commit offset if offset-1 has been committed previously.
+									_, err := c.CommitMessage(m)
+
+									if err != nil {
+										log.Fatalf("%% Error %s commiting %v\n", err, e)
+									} else {
+										log.Printf("%% [worker-%d] Commiting on %s\n", worker, m.TopicPartition)
+									}
+								}
+							}
+						}(worker, chs[p.Partition])
+
+						worker++
 					}
-				}(worker, e)
-				
-				worker++
+				}
+			case kafka.RevokedPartitions:
+				log.Printf("%% %v\n", e)
+				c.Unassign()
+				/* We can NOT stop workers for revoked partitions, because when assignation changes,
+				kafka first revoke all partitions always.
+				So we leave the channel and it would be reused if partition is reassigned. */
+			case *kafka.Message:
+				ch := chs[e.TopicPartition.Partition]
+
+				if ch == nil {
+					log.Fatalf("Channel for message %s not found", e)
+				} else {
+					log.Printf("Sending kafka msg to channel for %d", e.TopicPartition.Partition)
+					ch <- e
+				}
+
 			case kafka.PartitionEOF:
-				fmt.Printf("%% Reached %v\n", e)
+				log.Printf("%% Reached %v\n", e)
 			case kafka.Error:
 				// Errors should generally be considered as informational, the client will try to automatically recover
 				fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
