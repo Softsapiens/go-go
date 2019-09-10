@@ -74,23 +74,18 @@ func (r *DnsResolver) lookupHost(host string, triesLeft int, recType uint16) ([]
 	return in.Answer, err
 }
 
-func main() {
 
-	if len(os.Args) < 2 {
-		log.Fatalf("Usage: %s <domain>\n",
-			os.Args[0])
-		os.Exit(1)
-	}
+// LookupResult is Alias for channel type
+type LookupResult struct {
+	rr []dns.RR
+	err error
+}
 
-	domain := os.Args[1]
+func goLookup(ch chan LookupResult, f func(chan LookupResult)) {
+	f(ch)
+}
 
-	resolver := New([]string{"8.8.8.8", "8.8.4.4"})
-	// OR
-	// resolver := dns_resolver.NewFromResolvConf("resolv.conf")
-
-	// In case of i/o timeout
-	resolver.RetryTimes = 5
-
+func sync(resolver *DnsResolver, domain string) {
 	a, err := resolver.LookupHost(domain, dns.TypeA)
 	if err != nil {
 		log.Printf("Error %s", err)
@@ -109,4 +104,58 @@ func main() {
 	}
 	
 	log.Printf("domain %s --> \nA: \n%s\nAAAA: \n%s\nMX: \n%s\nNS: \n%s\n", domain, a, aaaa, mx, ns)
+}
+
+func async(resolver *DnsResolver, domain string) {
+	chA := make(chan LookupResult, 1)
+	chAAAA := make(chan LookupResult, 1)
+	chMX := make(chan LookupResult, 1)
+	chNS := make(chan LookupResult, 1)
+
+	lkup := func(t uint16, d string) func(chan LookupResult) {
+		return func(ch chan LookupResult) {
+			r, err := resolver.LookupHost(d, t)
+			if err != nil {
+				log.Printf("Error %s", err)
+			}
+			ch<-LookupResult{r, err}
+		}
+	}
+
+	go goLookup(chA, lkup(dns.TypeA, domain))
+	go goLookup(chAAAA, lkup(dns.TypeAAAA, domain))
+	go goLookup(chMX, lkup(dns.TypeMX, domain))
+	go goLookup(chNS, lkup(dns.TypeNS, domain))
+
+	a := <-chA
+	aaaa := <-chAAAA
+	mx := <-chMX
+	ns := <-chNS
+
+	log.Printf("domain %s --> \nA: \n%s\nAAAA: \n%s\nMX: \n%s\nNS: \n%s\n", domain, a, aaaa, mx, ns)
+}
+
+func main() {
+
+	if len(os.Args) < 2 {
+		log.Fatalf("Usage: %s <domain> [s]\n",
+			os.Args[0])
+		os.Exit(1)
+	}
+
+	domain := os.Args[1]
+	synky := os.Args[2]
+
+	resolver := New([]string{"8.8.8.8", "8.8.4.4"})
+	// OR
+	// resolver := dns_resolver.NewFromResolvConf("resolv.conf")
+
+	// In case of i/o timeout
+	resolver.RetryTimes = 5
+
+	if synky == "s" {
+		sync(resolver, domain)
+	} else {
+		async(resolver, domain)
+	}
 }
