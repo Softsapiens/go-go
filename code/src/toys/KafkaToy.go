@@ -26,12 +26,18 @@ func main() {
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":               broker,
-		"group.id":                        group,
-		"session.timeout.ms":              6000,
-		"go.events.channel.enable":        true,
-		"go.application.rebalance.enable": true,
-		"enable.auto.commit":              false,
+		"bootstrap.servers":               	broker,
+		"group.id":                        	group,
+		"session.timeout.ms":              	10000,
+		//"poll":								200,
+		"go.events.channel.size":			8000,
+		//"max.poll.records":					8000,
+		"max.partition.fetch.bytes":		393216,
+		"fetch.max.bytes":					1048576,
+		"max.poll.interval.ms":				86400000,
+		"go.events.channel.enable":        	true,
+		"go.application.rebalance.enable": 	true,
+		"enable.auto.commit":              	false,
 		// Enable generation of PartitionEOF when the
 		// end of a partition is reached.
 		"enable.partition.eof": 			true,
