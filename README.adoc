@@ -6,6 +6,28 @@
 
 This repo is a recopilation of hacking toys as an excuse to learn Go language features by playing them, as well as, some libraries from Go's universe.
 
+== Dockerization
+
+Toys could be dockerized in order to be run sa containers.
+Follow:
+
+```
+cd ./code/src/toys
+docker build . --tag gogo-toys:0.0.1
+```
+
 == Toys
 
-. link:./code/src/toys/KafkaToy.go[KafkaToy.go]: begining from an offical link:https://github.com/confluentinc/confluent-kafka-go/blob/master/examples/consumer_channel_example/consumer_channel_example.go[Kafka Go Example] this toys claims to put in practice topic consumption. A further info will be provided, but this toy requires link:https://github.com/edenhill/librdkafka[librdkafka] above 1.1.0
+. link:./code/src/toys/KafkaToy.go[KafkaToy.go]: begining from an offical link:https://github.com/confluentinc/confluent-kafka-go/blob/master/examples/consumer_channel_example/consumer_channel_example.go[Kafka Go Example] this toys claims to put in practice topic consumption. A further info will be provided, but this toy requires link:https://github.com/edenhill/librdkafka[librdkafka] above or equal 1.1.0
+
+Could be run using `docker run --rm -ti --network=dc_default gogo-toys:0.0.1 go run KafkaToy.go kafka:9092 kgo2 go.2`
+
+=== Utils
+
+```
+docker run -it --rm --network dc_default wurstmeister/kafka:2.11-1.1.1 bash
+
+kafka-topics.sh --zookeeper zookeeper:2181 --create --topic go.2 --partitions 2 --replication-factor 1
+
+watch -n 2 'kafka-consumer-groups.sh   --bootstrap-server "kafka:9092,kafka2:9092" --group "kgo2" --describe'
+```
